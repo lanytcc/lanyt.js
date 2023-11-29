@@ -4,3 +4,6 @@
 [submodule "mimalloc"]
 	path = mimalloc
 	url = https://github.com/microsoft/mimalloc.git
+[submodule "pthreads4w"]
+	path = pthreads4w
+	url = https://github.com/xmake-mirror/pthreads4w.git
