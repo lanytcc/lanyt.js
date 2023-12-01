@@ -17,7 +17,7 @@ void panda_free_js(panda_js *pjs);
 int panda_js_eval(panda_js *pjs, const char *filename);
 int panda_js_run(panda_js *pjs);
 
-int panda_js_save(panda_js *pjs, const char *filename);
-int panda_js_read(panda_js *pjs, const char *filename);
+int panda_js_save(panda_js *pjs, const char *filename, int is_debug);
+int panda_js_read(panda_js *pjs, const char *filename, int is_debug);
 
 #endif // !JSC_H

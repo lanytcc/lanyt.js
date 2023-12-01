@@ -328,7 +328,7 @@ int panda_js_run(panda_js *pjs) {
     return 0;
 }
 
-int panda_js_save(panda_js *pjs, const char *filename) {
+int panda_js_save(panda_js *pjs, const char *filename, int is_debug) {
     if (!pjs) {
         printf("pjs is null\n");
         return -1;
@@ -365,7 +365,7 @@ fail:
     return -2;
 }
 
-int panda_js_read(panda_js *pjs, const char *filename) {
+int panda_js_read(panda_js *pjs, const char *filename, int is_debug) {
     uint8_t *buf, *buf1;
     size_t buf_len;
 
