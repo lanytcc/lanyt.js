@@ -316,12 +316,14 @@ int panda_js_run(panda_js *pjs) {
     while (n != NULL) {
         if (n->bytecode == NULL)
             return -2;
-        js_std_eval_binary(pjs->ctx, n->bytecode, n->bytecode_len, 1);
+        if (js_std_eval_binary(pjs->ctx, n->bytecode, n->bytecode_len, 1))
+            return -3;
         n = n->next;
     }
     if (pjs->bytecode == NULL)
         return -2;
-    js_std_eval_binary(pjs->ctx, pjs->bytecode, pjs->bytecode_len, 0);
+    if (js_std_eval_binary(pjs->ctx, pjs->bytecode, pjs->bytecode_len, 0))
+        return -4;
 
     js_std_loop(pjs->ctx);
 
