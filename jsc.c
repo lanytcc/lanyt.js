@@ -261,7 +261,7 @@ static panda_js *panda_new_js_noctx(JSRuntime *rt) {
     return r;
 }
 
-panda_js *panda_new_js(JSRuntime *rt, int argc, char **argv) {
+panda_js *panda_new_js(JSRuntime *rt) {
     panda_js *r = mi_malloc(sizeof(panda_js));
 
     if (!r)
@@ -277,10 +277,11 @@ panda_js *panda_new_js(JSRuntime *rt, int argc, char **argv) {
     r->bytecode = NULL;
     r->next = NULL;
     JS_SetModuleLoaderFunc(rt, NULL, jsc_module_loader, r);
-    js_std_add_helpers(r->ctx, argc, argv);
 
     return r;
 }
+
+JSContext *panda_js_get_ctx(panda_js *pjs) { return pjs->ctx; }
 
 static void free_help(JSContext *ctx, panda_js *pjs) {
     if (pjs == NULL)
@@ -307,7 +308,38 @@ int panda_js_eval(panda_js *pjs, const char *filename) {
     return compile_file(pjs->ctx, pjs, filename);
 }
 
-int panda_js_run(panda_js *pjs) {
+static int run(JSContext *ctx, const uint8_t *buf, size_t buf_len,
+               int load_only, int silent) {
+    JSValue obj, val;
+    obj = JS_ReadObject(ctx, buf, buf_len, JS_READ_OBJ_BYTECODE);
+    if (JS_IsException(obj))
+        goto exception;
+    if (load_only) {
+        if (JS_VALUE_GET_TAG(obj) == JS_TAG_MODULE) {
+            js_module_set_import_meta(ctx, obj, FALSE, FALSE);
+        }
+    } else {
+        if (JS_VALUE_GET_TAG(obj) == JS_TAG_MODULE) {
+            if (JS_ResolveModule(ctx, obj) < 0) {
+                JS_FreeValue(ctx, obj);
+                goto exception;
+            }
+            js_module_set_import_meta(ctx, obj, FALSE, TRUE);
+        }
+        val = JS_EvalFunction(ctx, obj);
+        if (JS_IsException(val)) {
+        exception:
+            if (!silent)
+                js_std_dump_error(ctx);
+            return -1;
+        }
+        JS_FreeValue(ctx, val);
+    }
+
+    return 0;
+}
+
+int panda_js_run(panda_js *pjs, int silent) {
     if (!pjs) {
         printf("pjs is null\n");
         return -1;
@@ -316,13 +348,13 @@ int panda_js_run(panda_js *pjs) {
     while (n != NULL) {
         if (n->bytecode == NULL)
             return -2;
-        if (js_std_eval_binary(pjs->ctx, n->bytecode, n->bytecode_len, 1))
+        if (run(pjs->ctx, n->bytecode, n->bytecode_len, 1, silent))
             return -3;
         n = n->next;
     }
     if (pjs->bytecode == NULL)
         return -2;
-    if (js_std_eval_binary(pjs->ctx, pjs->bytecode, pjs->bytecode_len, 0))
+    if (run(pjs->ctx, pjs->bytecode, pjs->bytecode_len, 0, silent))
         return -4;
 
     js_std_loop(pjs->ctx);
@@ -330,7 +362,7 @@ int panda_js_run(panda_js *pjs) {
     return 0;
 }
 
-int panda_js_save(panda_js *pjs, const char *filename, int is_debug) {
+int panda_js_save(panda_js *pjs, const char *filename, int debug) {
     if (!pjs) {
         printf("pjs is null\n");
         return -1;
@@ -367,7 +399,7 @@ fail:
     return -2;
 }
 
-int panda_js_read(panda_js *pjs, const char *filename, int is_debug) {
+int panda_js_read(panda_js *pjs, const char *filename, int debug) {
     uint8_t *buf, *buf1;
     size_t buf_len;
 

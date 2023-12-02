@@ -1,15 +1,12 @@
 
 #include "module.h"
 #include "jsc.h"
-#include "quickjs-libc.h"
-#include "quickjs.h"
 
 #include <stdatomic.h>
 #include <stdbool.h>
 #include <string.h>
 
 #include <mimalloc.h>
-#include <vcruntime.h>
 
 #ifndef MODULE_MAX_NAME
 #define MODULE_MAX_NAME 256
@@ -363,14 +360,15 @@ struct plugin {
 plugin_t *load_plugin(JSContext *ctx, const char *plugin_name) {
     // TODO: remote plugin
     char *plugin_dir = concat(plugin_name, "/load.js");
-    panda_js *pjs = panda_new_js(JS_GetRuntime(ctx), 0, NULL);
+    panda_js *pjs = panda_new_js(JS_GetRuntime(ctx));
     if (pjs == NULL) {
         return NULL;
     }
+    js_std_add_helpers(ctx, 0, NULL);
     panda_js_eval(pjs, plugin_dir);
     mi_free(plugin_dir);
 
-    panda_js_run(pjs);
+    panda_js_run(pjs, 1);
     plugin_t *p = atomic_load_explicit(&_plugin, memory_order_acquire);
     atomic_store_explicit(&_plugin, NULL, memory_order_release);
 

@@ -46,7 +46,7 @@ target("quickjs")
     set_kind("static")
     set_languages("c11")
     add_files("jsc.c", "module.c", "quickjs/lib*.c", "quickjs/quickjs*.c", "quickjs/cutils.c")
-    add_options("atomics", "platform", "jsx")
+    add_options("bignum", "atomics", "platform", "jsx")
     add_packages("mimalloc")
     if is_plat("windows") then
         add_packages("pthreads4w")
@@ -67,7 +67,7 @@ target("pjs")
     set_languages("c11")
     add_files("main.c")
     add_packages("mimalloc")
-    add_options("atomics", "qjs-platform", "jsx")
+    add_options("bignum", "atomics", "platform", "jsx")
     if is_plat("windows") then
         add_packages("pthreads4w")
     end
