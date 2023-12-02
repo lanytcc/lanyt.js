@@ -53,9 +53,9 @@ target("quickjs")
     end
     before_build(function (target) 
         if not os.isfile("quickjs/quickjs-version.h") then
-            local ver = io.open("quickjs/VERSION", "r"):read("*a")
+            local ver = io.open("quickjs/VERSION", "r"):read()
             local file = io.open("quickjs/quickjs-version.h", "w+")
-            file:write("#define QUICKJS_VERSION \"" .. ver .. "\"\n")
+            file:write("#define QUICKJS_VERSION \"" .. ver .. "\"")
             file:close()
         end
     end)
