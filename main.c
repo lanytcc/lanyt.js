@@ -29,15 +29,12 @@ static const char *option_str[] = {
 };
 
 enum {
-    OPTION_COMPILE_DEBUG,
     OPTION_O,
     OPTION_COMPILE_COUNT,
 };
 
 static const char *option_compile_str[] = {
-    "--debug",
     "--output",
-    "-d",
     "-o",
 };
 
@@ -117,10 +114,6 @@ static int compile(int argc, char **argv) {
             }
             o_pos = i + 1;
             ++i;
-        } else if (!strcmp(argv[i], option_compile_str[OPTION_COMPILE_DEBUG]) ||
-                   !strcmp(argv[i], option_compile_str[OPTION_COMPILE_DEBUG +
-                                                       OPTION_COMPILE_COUNT])) {
-            debug = 1;
         } else if (pos == 0) {
             pos = i;
         } else {
@@ -168,7 +161,6 @@ static int help(int argc, char **argv) {
                 case COMMAND_COMPILE:
                     printf("  --output, -o:      --output <file> set output "
                            "file\n");
-                    printf("  --debug, -d:       debug mode\n");
                     break;
                 default:
                     break;

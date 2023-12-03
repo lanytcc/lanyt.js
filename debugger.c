@@ -1,7 +1,6 @@
 
 #include "jsc.h"
 #include "module.h"
-#include "quickjs.h"
 
 #include <direct.h>
 #include <stdio.h>
@@ -11,7 +10,6 @@
 
 #include <mimalloc.h>
 #include <pthread.h>
-#include <vcruntime.h>
 
 #define PJSD_VERSION "0.0.1"
 
@@ -19,12 +17,11 @@ enum {
     OPTION_PORT,
     OPTION_HELP,
     OPTION_VERSION,
-    OPTION_BYTECODE,
     OPTION_COUNT,
 };
 
 static const char *option_str[] = {
-    "--port", "--help", "--version", "--bytecode", "-p", "-h", "-v", "-b",
+    "--port", "--help", "--version", "-p", "-h", "-v",
 };
 
 enum {
@@ -73,7 +70,6 @@ static void help(FILE *fp) {
     fprintf(fp, "  --port, -p:            --port <int>, set remote port\n");
     fprintf(fp, "  --help, -h:            print help\n");
     fprintf(fp, "  --version, -v:         print version\n");
-    fprintf(fp, "  --bytecode, -b:        run bytecode\n");
     fprintf(fp, "Debugger Commands:\n");
     fprintf(fp, "  list, l:               l <line>:[line], list source code\n");
     fprintf(fp, "  breakpoint, b:         b [file]:<line>, set or unset "
@@ -252,7 +248,6 @@ static int loop(JSContext *ctx, int start, const char *filename, size_t line,
             break;
         }
         int command = parse_command(line_buf);
-        printf("command: %d\n", command);
         if (p)
             *p = ' ';
         switch (command) {
@@ -492,10 +487,6 @@ int main(int argc, char **argv) {
                 fprintf(stderr, "port option need a port number\n");
                 return 1;
             }
-        } else if (!strcmp(argv[i], option_str[OPTION_BYTECODE]) ||
-                   !strcmp(argv[i],
-                           option_str[OPTION_BYTECODE + OPTION_COUNT])) {
-            bc = 1;
         } else if (pos == 0) {
             pos = i;
         } else {
