@@ -1,13 +1,13 @@
 
 #include "jsc.h"
 #include "module.h"
-#include "quickjs.h"
 
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
 
 #include <mimalloc.h>
+#include <string.h>
 
 #if defined(__APPLE__)
 #define MALLOC_OVERHEAD 0
@@ -113,6 +113,7 @@ struct panda_js {
     int byte_swap;
     size_t bytecode_len;
     uint8_t *bytecode;
+    char *filename;
     struct panda_js *next;
 };
 
@@ -162,7 +163,11 @@ static JSModuleDef *jsc_module_loader(JSContext *ctx, const char *module_name,
     }
     if (!buf) {
         size_t len = strlen(module_name);
-        char *module_name_buf = (char *)js_malloc(ctx, len + 4);
+        char *module_name_buf = js_malloc(ctx, len + 4);
+        if (!module_name_buf) {
+            js_std_dump_error(ctx);
+            return NULL;
+        }
         snprintf(module_name_buf, len + 4, "%s.js", module_name);
         buf = js_load_file(ctx, &buf_len, module_name_buf);
         js_free(ctx, module_name_buf);
@@ -220,6 +225,7 @@ static int compile_file(JSContext *ctx, panda_js *pjs, const char *filename) {
     }
     if (!buf) {
         JS_ThrowTypeError(ctx, "Could not load '%s'", filename);
+    dump:
         js_std_dump_error(ctx);
         return -1;
     }
@@ -232,17 +238,29 @@ static int compile_file(JSContext *ctx, panda_js *pjs, const char *filename) {
         eval_flags |= JS_EVAL_TYPE_GLOBAL;
 
     obj = JS_Eval(ctx, (const char *)buf, buf_len, filename, eval_flags);
-    if (strcmp(pc_buf, pc))
+    if (strcmp(pc_buf, pc)) {
+        pjs->filename =
+            js_malloc(ctx, strlen(filename) + 1 + 2 + strlen((char *)buf));
+        if (!pjs->filename) {
+            JS_FreeValue(ctx, obj);
+            goto dump;
+        }
+        sprintf(pjs->filename, "<%s>", filename);
+        strcat(pjs->filename, (char *)buf);
         js_free(ctx, buf);
-
-    if (JS_IsException(obj)) {
-        js_std_dump_error(ctx);
-        return -2;
+    } else {
+        pjs->filename = js_strdup(ctx, (char *)buf);
     }
-
+    if (!pjs->filename) {
+        JS_FreeValue(ctx, obj);
+        goto dump;
+    }
+    if (JS_IsException(obj)) {
+        JS_FreeValue(ctx, obj);
+        goto dump;
+    }
     to_bytecode(ctx, obj, pjs);
     JS_FreeValue(ctx, obj);
-
     return 0;
 }
 
@@ -256,6 +274,7 @@ static panda_js *panda_new_js_noctx(JSRuntime *rt) {
     r->byte_swap = 0;
     r->bytecode_len = 0;
     r->bytecode = NULL;
+    r->filename = NULL;
     r->next = NULL;
 
     return r;
@@ -275,6 +294,7 @@ panda_js *panda_new_js(JSRuntime *rt) {
     r->byte_swap = 0;
     r->bytecode_len = 0;
     r->bytecode = NULL;
+    r->filename = NULL;
     r->next = NULL;
     JS_SetModuleLoaderFunc(rt, NULL, jsc_module_loader, r);
 
@@ -282,11 +302,14 @@ panda_js *panda_new_js(JSRuntime *rt) {
 }
 
 JSContext *panda_js_get_ctx(panda_js *pjs) { return pjs->ctx; }
+panda_js *panda_js_get_next(panda_js *pjs) { return pjs->next; }
+char *panda_js_get_filename(panda_js *pjs) { return pjs->filename; }
 
 static void free_help(JSContext *ctx, panda_js *pjs) {
     if (pjs == NULL)
         return;
     js_free(ctx, pjs->bytecode);
+    js_free(ctx, pjs->filename);
     free_help(ctx, pjs->next);
     mi_free(pjs);
 }
@@ -375,18 +398,56 @@ int panda_js_save(panda_js *pjs, const char *filename, int debug) {
         return -1;
     }
 
+    if (fwrite(&debug, sizeof(debug), 1, fp) != 1)
+        goto fail;
     while (pjs != NULL) {
-        if (pjs->bytecode == NULL)
+        if (pjs->bytecode == NULL) {
+            JS_ThrowInternalError(pjs->ctx, "bytecode is null");
             goto fail;
-        if (fwrite(&pjs->bytecode_len, sizeof(pjs->bytecode_len), 1, fp) != 1)
+        }
+        if (fwrite(&pjs->bytecode_len, sizeof(pjs->bytecode_len), 1, fp) != 1) {
+            JS_ThrowInternalError(pjs->ctx, "could not write bytecode_len");
             goto fail;
+        }
         if (fwrite(pjs->bytecode, 1, pjs->bytecode_len, fp) !=
-            pjs->bytecode_len)
+            pjs->bytecode_len) {
+            JS_ThrowInternalError(pjs->ctx, "could not write bytecode");
             goto fail;
+        }
+        if (!debug) {
+            pjs = pjs->next;
+            continue;
+        }
+        if (pjs->filename) {
+            uint64_t len = strlen(pjs->filename);
+            if (fwrite(&len, sizeof(len), 1, fp) != 1) {
+                JS_ThrowInternalError(
+                    pjs->ctx, "could not write file len: '%s'", pjs->filename);
+                goto fail;
+            }
+            if (fwrite(pjs->filename, 1, len, fp) != len) {
+                JS_ThrowInternalError(pjs->ctx, "could not write file: %s",
+                                      pjs->filename);
+                goto fail;
+            }
+        } else {
+            char *buf = "(external call)";
+            uint64_t len = strlen(buf);
+            if (fwrite(&len, sizeof(len), 1, fp) != 1) {
+                JS_ThrowInternalError(
+                    pjs->ctx, "could not write file len: '%s'", pjs->filename);
+                goto fail;
+            }
+            if (fwrite(buf, 1, len, fp) != len) {
+                JS_ThrowInternalError(pjs->ctx, "could not write file: %s",
+                                      pjs->filename);
+                goto fail;
+            }
+        }
         pjs = pjs->next;
     }
 
-    size_t _tmp = 0;
+    uint64_t _tmp = 0;
     if (fwrite(&_tmp, sizeof(_tmp), 1, fp) != 1)
         goto fail;
 
@@ -394,45 +455,44 @@ int panda_js_save(panda_js *pjs, const char *filename, int debug) {
     return 0;
 fail:
     fclose(fp);
-    JS_ThrowInternalError(pjs->ctx, "could not write '%s'", filename);
     js_std_dump_error(pjs->ctx);
     return -2;
 }
 
-int panda_js_read(panda_js *pjs, const char *filename, int debug) {
+int panda_js_read(panda_js *pjs, const char *filename, int *debug) {
     uint8_t *buf, *buf1;
-    size_t buf_len;
-
+    uint64_t buf_len;
+    int is_debug = 0;
     if (!pjs) {
         printf("pjs is null\n");
         return -1;
     }
-
     if (!filename) {
         JS_ThrowInternalError(pjs->ctx, "filename is null");
         js_std_dump_error(pjs->ctx);
         return -1;
     }
-
     buf = js_load_file(pjs->ctx, &buf_len, filename);
     buf1 = buf;
-
     if (!buf) {
         JS_ThrowInternalError(pjs->ctx, "could not load '%s'", filename);
         js_std_dump_error(pjs->ctx);
         return -2;
     }
-
+    is_debug = *(int *)buf;
+    buf += sizeof(int);
+    buf_len -= sizeof(int);
+    if (debug)
+        *debug = is_debug;
     int f = 0;
     while (buf_len > 0) {
-        size_t len;
+        uint64_t len;
         uint8_t *p;
 
-        len = *(size_t *)buf;
+        len = *(uint64_t *)buf;
         if (len == 0)
             break;
-        p = buf + sizeof(size_t);
-
+        p = buf + sizeof(uint64_t);
         if (len > buf_len) {
             JS_ThrowInternalError(pjs->ctx, "invalid file format");
             js_std_dump_error(pjs->ctx);
@@ -442,19 +502,43 @@ int panda_js_read(panda_js *pjs, const char *filename, int debug) {
         panda_js *n = panda_new_js_noctx(JS_GetRuntime(pjs->ctx));
         if (!n) {
         mem_fail:
-            JS_ThrowInternalError(pjs->ctx, "could not apply for memory");
             js_std_dump_error(pjs->ctx);
             goto fail;
         }
-
         n->bytecode_len = len;
         n->bytecode = js_malloc(pjs->ctx, len);
         if (!n->bytecode) {
             js_free(pjs->ctx, n);
             goto mem_fail;
         }
-
         memcpy(n->bytecode, p, len);
+
+        if (is_debug) {
+            buf += len + sizeof(uint64_t);
+            buf_len -= len + sizeof(uint64_t);
+
+            if (buf_len < sizeof(uint64_t)) {
+                JS_ThrowInternalError(pjs->ctx, "invalid file format");
+                js_std_dump_error(pjs->ctx);
+                goto fail;
+            }
+
+            len = *(uint64_t *)buf;
+            p = buf + sizeof(uint64_t);
+            if (len > buf_len) {
+                JS_ThrowInternalError(pjs->ctx, "invalid file format");
+                js_std_dump_error(pjs->ctx);
+                goto fail;
+            }
+            n->filename = js_malloc(pjs->ctx, len + 1);
+            if (!n->filename) {
+                js_free(pjs->ctx, n->bytecode);
+                js_free(pjs->ctx, n);
+                goto mem_fail;
+            }
+            memcpy(n->filename, p, len);
+            n->filename[len] = '\0';
+        }
 
         if (!f) {
             pjs->bytecode_len = len;
@@ -469,8 +553,8 @@ int panda_js_read(panda_js *pjs, const char *filename, int debug) {
             t->next = n;
         }
 
-        buf += len + sizeof(size_t);
-        buf_len -= len + sizeof(size_t);
+        buf += len + sizeof(uint64_t);
+        buf_len -= len + sizeof(uint64_t);
     }
 
     js_free(pjs->ctx, buf1);

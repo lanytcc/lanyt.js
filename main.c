@@ -1,8 +1,5 @@
 #include "jsc.h"
 #include "module.h"
-#include "quickjs-libc.h"
-#include "quickjs.h"
-#include <minwindef.h>
 #include <stdio.h>
 
 #define PJS_VERSION "0.0.1"
@@ -23,13 +20,12 @@ typedef int (*command_func)(int argc, char **argv);
 enum {
     OPTION_RUN_BYTECODE,
     OPTION_RUN_ARGS,
-    OPTION_RUN_ENV,
     OPTION_RUN_SILENT,
     OPTION_RUN_COUNT,
 };
 
 static const char *option_str[] = {
-    "--bytecode", "--args", "--env", "--silent", "-b", "-a", "-e", "-s",
+    "--bytecode", "--args", "--silent", "-b", "-a", "-s",
 };
 
 enum {
@@ -40,30 +36,14 @@ enum {
 
 static const char *option_compile_str[] = {
     "--debug",
-    "-o",
+    "--output",
     "-d",
     "-o",
 };
 
-static int set_env(JSContext *ctx, char *env, JSValue *obj) {
-    char *p = strchr(env, '=');
-    if (!p) {
-        fprintf(stderr, "env option need a name=value\n");
-        return 1;
-    } else {
-        *p = '\0';
-        if (JS_SetPropertyStr(ctx, *obj, env, JS_NewString(ctx, p + 1)) == -1) {
-            js_std_dump_error(ctx);
-            return 1;
-        }
-    }
-    return 0;
-}
-
 static int run(int argc, char **argv) {
     int sargc = 0, silent = 0, pos = 0, bc = 0;
     char **sargv = NULL;
-    JSValue env;
     JSContext *ctx;
     JSRuntime *rt = panda_jsc_new_rt();
     if (!rt) {
@@ -76,11 +56,6 @@ static int run(int argc, char **argv) {
         return 1;
     }
     ctx = panda_js_get_ctx(pjs);
-    env = JS_NewObject(ctx);
-    if (JS_IsException(env)) {
-        js_std_dump_error(ctx);
-        return 1;
-    }
 
     for (size_t i = 2; i < argc; i++) {
         if (!strcmp(argv[i], option_str[OPTION_RUN_BYTECODE]) ||
@@ -93,17 +68,6 @@ static int run(int argc, char **argv) {
             sargc = argc - i - 1;
             sargv = &argv[i + 1];
             break;
-        } else if (!strcmp(argv[i], option_str[OPTION_RUN_ENV]) ||
-                   !strcmp(argv[i],
-                           option_str[OPTION_RUN_ENV + OPTION_RUN_COUNT])) {
-            if (i + 1 >= argc) {
-                fprintf(stderr, "env option need a name=value\n");
-                return 1;
-            }
-            if (set_env(ctx, argv[i + 1], &env))
-                return 1;
-            printf("%s\n", argv[i + 1]);
-            ++i;
         } else if (!strcmp(argv[i], option_str[OPTION_RUN_SILENT]) ||
                    !strcmp(argv[i],
                            option_str[OPTION_RUN_SILENT + OPTION_RUN_COUNT])) {
@@ -115,13 +79,9 @@ static int run(int argc, char **argv) {
             return 1;
         }
     }
-    if (JS_SetPropertyStr(ctx, JS_GetGlobalObject(ctx), "env", env) == -1) {
-        js_std_dump_error(ctx);
-        return 1;
-    }
     js_std_add_helpers(ctx, sargc, sargv);
     if (bc) {
-        if (panda_js_read(pjs, argv[pos], 0))
+        if (panda_js_read(pjs, argv[pos], NULL))
             return 1;
     } else {
         if (panda_js_eval(pjs, argv[pos]))
@@ -170,7 +130,9 @@ static int compile(int argc, char **argv) {
     }
     if (panda_js_eval(pjs, argv[pos]))
         return 1;
-    if (panda_js_save(pjs, argv[o_pos], debug))
+    if (o_pos && panda_js_save(pjs, argv[o_pos], debug))
+        return 1;
+    if (!o_pos && panda_js_save(pjs, "a.pbc", debug))
         return 1;
     panda_free_js(pjs);
     panda_jsc_free_rt(rt);
@@ -179,13 +141,14 @@ static int compile(int argc, char **argv) {
 
 static int help(int argc, char **argv) {
     if (argc == 2) {
-        printf("Usage: pjs [command] [options]\n");
+        printf("Usage: pjs <command> [options]\n");
         printf("Options:\n");
         printf("  --version, -v:    print version\n");
         printf("Commands:\n");
-        printf("  run, r:           run js file\n");
-        printf("  compile, c:       compile js file to binary\n");
-        printf("  help, h:          print help\n");
+        printf("  run, r:           run <file>, run js file\n");
+        printf(
+            "  compile, c:       compile <file>, compile js file to binary\n");
+        printf("  help, h:          help [command], print help\n");
         printf("More help use: pjs help [command]\n");
         return 0;
     } else if (argc == 3) {
@@ -197,15 +160,14 @@ static int help(int argc, char **argv) {
                 switch (i) {
                 case COMMAND_RUN:
                     printf("  --bytecode, -b:    run bytecode\n");
-                    printf(
-                        "  --args, -a:        --args [args]... set args for js "
-                        "file\n");
-                    printf(
-                        "  --env, -e:         --env [name=value] set env for "
-                        "js file\n");
+                    printf("  --args, -a:        --args <arg> [args] set "
+                           "args for js "
+                           "file\n");
                     printf("  --silent, -s:      silent mode\n");
                     break;
                 case COMMAND_COMPILE:
+                    printf("  --output, -o:      --output <file> set output "
+                           "file\n");
                     printf("  --debug, -d:       debug mode\n");
                     break;
                 default:

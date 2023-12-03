@@ -1,8 +1,11 @@
 
 add_rules("mode.debug", "mode.release")
 add_requires("mimalloc")
+add_packages("mimalloc")
 if is_plat("windows") then
     add_requires("pthreads4w")
+    add_packages("pthreads4w")
+    add_syslinks("ws2_32", "wldap32")
 end
 add_includedirs("quickjs", ".")
 
@@ -41,16 +44,18 @@ option("build-debugger")
     add_defines("CONFIG_DEBUGGER")
 option_end()
 
+option("smallest")
+    set_default(false)
+    set_showmenu(true)
+    set_description("Enable exe smallest size")
+    set_optimize("smallest")
+option_end()
 
 target("quickjs")
     set_kind("static")
     set_languages("c11")
     add_files("jsc.c", "module.c", "quickjs/lib*.c", "quickjs/quickjs*.c", "quickjs/cutils.c")
-    add_options("bignum", "atomics", "platform", "jsx")
-    add_packages("mimalloc")
-    if is_plat("windows") then
-        add_packages("pthreads4w")
-    end
+    add_options("bignum", "atomics", "platform", "jsx", "smallest")
     before_build(function (target) 
         if not os.isfile("quickjs/quickjs-version.h") then
             local ver = io.open("quickjs/VERSION", "r"):read()
@@ -66,11 +71,7 @@ target("pjs")
     set_kind("binary")
     set_languages("c11")
     add_files("main.c")
-    add_packages("mimalloc")
-    add_options("bignum", "atomics", "platform", "jsx")
-    if is_plat("windows") then
-        add_packages("pthreads4w")
-    end
+    add_options("bignum", "atomics", "platform", "jsx", "smallest")
 target_end()
 
 if get_config("build-debugger") then
@@ -78,11 +79,7 @@ if get_config("build-debugger") then
         set_kind("static")
         set_languages("c11")
         add_files("jsc.c", "module.c", "quickjs/lib*.c", "quickjs/quickjs*.c", "quickjs/cutils.c")
-        add_options("atomics", "platform", "jsx", "build-debugger")
-        add_packages("mimalloc")
-        if is_plat("windows") then
-            add_packages("pthreads4w")
-        end
+        add_options("atomics", "platform", "jsx", "build-debugger", "smallest")
     target_end()
 
     target("pjsd")
@@ -90,10 +87,6 @@ if get_config("build-debugger") then
         set_kind("binary")
         set_languages("c11")
         add_files("debugger.c")
-        add_packages("mimalloc")
-        add_options("atomics", "platform", "jsx","build-debugger")
-        if is_plat("windows") then
-            add_packages("pthreads4w")
-        end
+        add_options("atomics", "platform", "jsx","build-debugger", "smallest")
     target_end()
 end
