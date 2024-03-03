@@ -146,21 +146,16 @@ static JSModuleDef *jsc_module_loader(JSContext *ctx, const char *module_name,
     uint8_t *buf;
     JSValue func_val;
     panda_js *pjs = opaque;
-    char *filename = NULL;
 
     /* check if it is a declared C or system module */
-    m = panda_js_init_module(ctx, module_name, &filename);
+    m = panda_js_init_module(ctx, module_name);
 
     if (m) {
         return m;
     }
 
-    if (filename) {
-        buf = js_load_file(ctx, &buf_len, filename);
-        js_free(ctx, filename);
-    } else {
-        buf = js_load_file(ctx, &buf_len, module_name);
-    }
+    buf = js_load_file(ctx, &buf_len, module_name);
+
     if (!buf) {
         size_t len = strlen(module_name);
         char *module_name_buf = js_malloc(ctx, len + 4);
