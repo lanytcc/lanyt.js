@@ -3,7 +3,7 @@ add_rules("mode.debug", "mode.release")
 add_requires("mimalloc")
 includes("../quickjs/xmake.lua")
 
-target("pjs")
+target("ljs")
     add_packages("mimalloc")
     add_deps("quickjs")
     set_kind("binary")
