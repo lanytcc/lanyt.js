@@ -267,7 +267,7 @@ static JSModuleDef *js_ffi_init_module(JSContext *ctx,
     return m;
 }
 
-JSModuleDef *panda_js_init_module(JSContext *ctx, const char *module_name) {
+JSModuleDef *lanyt_js_init_module(JSContext *ctx, const char *module_name) {
     char _module_name[MODULE_MAX_NAME] = {0};
     char *str1 = NULL;
     char *str2 = NULL;
@@ -318,10 +318,10 @@ JSModuleDef *panda_js_init_module(JSContext *ctx, const char *module_name) {
     return NULL;
 }
 
-void panda_js_module_init() {
-    cmodule_list_add("panda:ffi", js_ffi_init_module);
+void lanyt_js_module_init() {
+    cmodule_list_add("lanyt:ffi", js_ffi_init_module);
 }
-void panda_js_module_free() {
+void lanyt_js_module_free() {
     cmodule_list_free();
     dll_list_free();
 }

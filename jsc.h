@@ -6,21 +6,21 @@
 #include <quickjs-libc.h>
 #include <quickjs.h>
 
-JSRuntime *panda_jsc_new_rt();
-void panda_jsc_free_rt(JSRuntime *p);
+JSRuntime *lanyt_jsc_new_rt();
+void lanyt_jsc_free_rt(JSRuntime *p);
 
-typedef struct panda_js panda_js;
+typedef struct lanyt_js lanyt_js;
 
-panda_js *panda_new_js(JSRuntime *rt);
-JSContext *panda_js_get_ctx(panda_js *pjs);
-panda_js *panda_js_get_next(panda_js *pjs);
-char *panda_js_get_filename(panda_js *pjs);
-void panda_free_js(panda_js *pjs);
+lanyt_js *lanyt_new_js(JSRuntime *rt);
+JSContext *lanyt_js_get_ctx(lanyt_js *pjs);
+lanyt_js *lanyt_js_get_next(lanyt_js *pjs);
+char *lanyt_js_get_filename(lanyt_js *pjs);
+void lanyt_free_js(lanyt_js *pjs);
 
-int panda_js_eval(panda_js *pjs, const char *filename);
-int panda_js_run(panda_js *pjs, int silent);
+int lanyt_js_eval(lanyt_js *pjs, const char *filename);
+int lanyt_js_run(lanyt_js *pjs, int silent);
 
-int panda_js_save(panda_js *pjs, const char *filename, int debug);
-int panda_js_read(panda_js *pjs, const char *filename, int *debug);
+int lanyt_js_save(lanyt_js *pjs, const char *filename, int debug);
+int lanyt_js_read(lanyt_js *pjs, const char *filename, int *debug);
 
 #endif // !JSC_H

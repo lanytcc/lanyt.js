@@ -94,7 +94,7 @@ static JSContext *JS_NewCustomContext(JSRuntime *rt) {
     return ctx;
 }
 
-JSRuntime *panda_jsc_new_rt() {
+JSRuntime *lanyt_jsc_new_rt() {
     JSRuntime *p = JS_NewRuntime2(&def_malloc_funcs, NULL);
     if (!p)
         return NULL;
@@ -103,23 +103,23 @@ JSRuntime *panda_jsc_new_rt() {
     return p;
 }
 
-void panda_jsc_free_rt(JSRuntime *p) {
+void lanyt_jsc_free_rt(JSRuntime *p) {
     js_std_free_handlers(p);
     JS_FreeRuntime(p);
 }
 
-struct panda_js {
+struct lanyt_js {
     JSContext *ctx;
     int byte_swap;
     size_t bytecode_len;
     uint8_t *bytecode;
     char *filename;
-    struct panda_js *next;
+    struct lanyt_js *next;
 };
 
-static panda_js *panda_new_js_noctx(JSRuntime *rt);
+static lanyt_js *lanyt_new_js_noctx(JSRuntime *rt);
 
-static int to_bytecode(JSContext *ctx, JSValueConst obj, panda_js *pjs) {
+static int to_bytecode(JSContext *ctx, JSValueConst obj, lanyt_js *pjs) {
     uint8_t *bytecode_buf;
     size_t bytecode_buf_len;
     int flags;
@@ -145,10 +145,10 @@ static JSModuleDef *jsc_module_loader(JSContext *ctx, const char *module_name,
     size_t buf_len;
     uint8_t *buf;
     JSValue func_val;
-    panda_js *pjs = opaque;
+    lanyt_js *pjs = opaque;
 
     /* check if it is a declared C or system module */
-    m = panda_js_init_module(ctx, module_name);
+    m = lanyt_js_init_module(ctx, module_name);
 
     if (m) {
         return m;
@@ -187,7 +187,7 @@ static JSModuleDef *jsc_module_loader(JSContext *ctx, const char *module_name,
     while (pjs->next != NULL)
         pjs = pjs->next;
 
-    pjs->next = panda_new_js_noctx(JS_GetRuntime(ctx));
+    pjs->next = lanyt_new_js_noctx(JS_GetRuntime(ctx));
     if (to_bytecode(ctx, func_val, pjs->next)) {
         JS_FreeValue(ctx, func_val);
         JS_ThrowInternalError(ctx, "could not write module bytecode '%s'",
@@ -202,13 +202,13 @@ static JSModuleDef *jsc_module_loader(JSContext *ctx, const char *module_name,
     return m;
 }
 
-static int compile_file(JSContext *ctx, panda_js *pjs, const char *filename) {
+static int compile_file(JSContext *ctx, lanyt_js *pjs, const char *filename) {
     uint8_t *buf;
     int eval_flags;
     JSValue obj;
     size_t buf_len;
 
-    char *pc = "<panda>";
+    char *pc = "<lanyt>";
     char pc_buf[8] = {0};
     snprintf(pc_buf, 8, "%s", filename);
 
@@ -259,8 +259,8 @@ static int compile_file(JSContext *ctx, panda_js *pjs, const char *filename) {
     return 0;
 }
 
-static panda_js *panda_new_js_noctx(JSRuntime *rt) {
-    panda_js *r = mi_malloc(sizeof(panda_js));
+static lanyt_js *lanyt_new_js_noctx(JSRuntime *rt) {
+    lanyt_js *r = mi_malloc(sizeof(lanyt_js));
 
     if (!r)
         return NULL;
@@ -275,8 +275,8 @@ static panda_js *panda_new_js_noctx(JSRuntime *rt) {
     return r;
 }
 
-panda_js *panda_new_js(JSRuntime *rt) {
-    panda_js *r = mi_malloc(sizeof(panda_js));
+lanyt_js *lanyt_new_js(JSRuntime *rt) {
+    lanyt_js *r = mi_malloc(sizeof(lanyt_js));
 
     if (!r)
         return NULL;
@@ -296,11 +296,11 @@ panda_js *panda_new_js(JSRuntime *rt) {
     return r;
 }
 
-JSContext *panda_js_get_ctx(panda_js *pjs) { return pjs->ctx; }
-panda_js *panda_js_get_next(panda_js *pjs) { return pjs->next; }
-char *panda_js_get_filename(panda_js *pjs) { return pjs->filename; }
+JSContext *lanyt_js_get_ctx(lanyt_js *pjs) { return pjs->ctx; }
+lanyt_js *lanyt_js_get_next(lanyt_js *pjs) { return pjs->next; }
+char *lanyt_js_get_filename(lanyt_js *pjs) { return pjs->filename; }
 
-static void free_help(JSContext *ctx, panda_js *pjs) {
+static void free_help(JSContext *ctx, lanyt_js *pjs) {
     if (pjs == NULL)
         return;
     js_free(ctx, pjs->bytecode);
@@ -309,7 +309,7 @@ static void free_help(JSContext *ctx, panda_js *pjs) {
     mi_free(pjs);
 }
 
-void panda_free_js(panda_js *pjs) {
+void lanyt_free_js(lanyt_js *pjs) {
     JSContext *ctx;
     if (pjs == NULL)
         return;
@@ -318,7 +318,7 @@ void panda_free_js(panda_js *pjs) {
     JS_FreeContext(ctx);
 }
 
-int panda_js_eval(panda_js *pjs, const char *filename) {
+int lanyt_js_eval(lanyt_js *pjs, const char *filename) {
     if (!pjs) {
         printf("pjs is null\n");
         return -1;
@@ -357,12 +357,12 @@ static int run(JSContext *ctx, const uint8_t *buf, size_t buf_len,
     return 0;
 }
 
-int panda_js_run(panda_js *pjs, int silent) {
+int lanyt_js_run(lanyt_js *pjs, int silent) {
     if (!pjs) {
         printf("pjs is null\n");
         return -1;
     }
-    panda_js *n = pjs->next;
+    lanyt_js *n = pjs->next;
     while (n != NULL) {
         if (n->bytecode == NULL)
             return -2;
@@ -380,7 +380,7 @@ int panda_js_run(panda_js *pjs, int silent) {
     return 0;
 }
 
-int panda_js_save(panda_js *pjs, const char *filename, int debug) {
+int lanyt_js_save(lanyt_js *pjs, const char *filename, int debug) {
     if (!pjs) {
         printf("pjs is null\n");
         return -1;
@@ -454,7 +454,7 @@ fail:
     return -2;
 }
 
-int panda_js_read(panda_js *pjs, const char *filename, int *debug) {
+int lanyt_js_read(lanyt_js *pjs, const char *filename, int *debug) {
     uint8_t *buf, *buf1;
     uint64_t buf_len;
     int is_debug = 0;
@@ -494,7 +494,7 @@ int panda_js_read(panda_js *pjs, const char *filename, int *debug) {
             goto fail;
         }
 
-        panda_js *n = panda_new_js_noctx(JS_GetRuntime(pjs->ctx));
+        lanyt_js *n = lanyt_new_js_noctx(JS_GetRuntime(pjs->ctx));
         if (!n) {
         mem_fail:
             js_std_dump_error(pjs->ctx);
@@ -541,7 +541,7 @@ int panda_js_read(panda_js *pjs, const char *filename, int *debug) {
             f = 1;
             js_free(pjs->ctx, n);
         } else {
-            panda_js *t = pjs->next;
+            lanyt_js *t = pjs->next;
             while (t->next != NULL) {
                 t = t->next;
             }

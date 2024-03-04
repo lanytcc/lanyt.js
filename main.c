@@ -42,17 +42,17 @@ static int run(int argc, char **argv) {
     int sargc = 0, silent = 0, pos = 0, bc = 0;
     char **sargv = NULL;
     JSContext *ctx;
-    JSRuntime *rt = panda_jsc_new_rt();
+    JSRuntime *rt = lanyt_jsc_new_rt();
     if (!rt) {
         fprintf(stderr, "create runtime failed\n");
         return 1;
     }
-    panda_js *pjs = panda_new_js(rt);
+    lanyt_js *pjs = lanyt_new_js(rt);
     if (!pjs) {
         fprintf(stderr, "create js context failed\n");
         return 1;
     }
-    ctx = panda_js_get_ctx(pjs);
+    ctx = lanyt_js_get_ctx(pjs);
 
     for (size_t i = 2; i < argc; i++) {
         if (!strcmp(argv[i], option_str[OPTION_RUN_BYTECODE]) ||
@@ -78,27 +78,27 @@ static int run(int argc, char **argv) {
     }
     js_std_add_helpers(ctx, sargc, sargv);
     if (bc) {
-        if (panda_js_read(pjs, argv[pos], NULL))
+        if (lanyt_js_read(pjs, argv[pos], NULL))
             return 1;
     } else {
-        if (panda_js_eval(pjs, argv[pos]))
+        if (lanyt_js_eval(pjs, argv[pos]))
             return 1;
     }
-    if (panda_js_run(pjs, silent))
+    if (lanyt_js_run(pjs, silent))
         return 1;
-    panda_free_js(pjs);
-    panda_jsc_free_rt(rt);
+    lanyt_free_js(pjs);
+    lanyt_jsc_free_rt(rt);
     return 0;
 }
 
 static int compile(int argc, char **argv) {
     int debug = 0, pos = 0, o_pos = 0;
-    JSRuntime *rt = panda_jsc_new_rt();
+    JSRuntime *rt = lanyt_jsc_new_rt();
     if (!rt) {
         fprintf(stderr, "create runtime failed\n");
         return 1;
     }
-    panda_js *pjs = panda_new_js(rt);
+    lanyt_js *pjs = lanyt_new_js(rt);
     if (!pjs) {
         fprintf(stderr, "create js context failed\n");
         return 1;
@@ -121,14 +121,14 @@ static int compile(int argc, char **argv) {
             return 1;
         }
     }
-    if (panda_js_eval(pjs, argv[pos]))
+    if (lanyt_js_eval(pjs, argv[pos]))
         return 1;
-    if (o_pos && panda_js_save(pjs, argv[o_pos], debug))
+    if (o_pos && lanyt_js_save(pjs, argv[o_pos], debug))
         return 1;
-    if (!o_pos && panda_js_save(pjs, "a.pbc", debug))
+    if (!o_pos && lanyt_js_save(pjs, "a.pbc", debug))
         return 1;
-    panda_free_js(pjs);
-    panda_jsc_free_rt(rt);
+    lanyt_free_js(pjs);
+    lanyt_jsc_free_rt(rt);
     return 0;
 }
 
@@ -188,7 +188,7 @@ static const command_func command_func_list[] = {
 
 int main(int argc, char **argv) {
     int ret = 0;
-    panda_js_module_init();
+    lanyt_js_module_init();
     for (size_t i = 0; i < COMMAND_COUNT; i++) {
         if (!strcmp(argv[1], command_str[i]) ||
             !strcmp(argv[1], command_str[i + COMMAND_COUNT])) {
@@ -196,6 +196,6 @@ int main(int argc, char **argv) {
             break;
         }
     }
-    panda_js_module_free();
+    lanyt_js_module_free();
     return ret;
 }

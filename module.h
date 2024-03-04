@@ -13,10 +13,10 @@
 #error "Unknown_platform"
 #endif
 
-void panda_js_module_init();
-void panda_js_module_free();
+void lanyt_js_module_init();
+void lanyt_js_module_free();
 
-JSModuleDef *panda_js_init_module(JSContext *ctx, const char *module_name);
+JSModuleDef *lanyt_js_init_module(JSContext *ctx, const char *module_name);
 // cmodule
 typedef JSModuleDef *(*init_cmodule_fn_t)(JSContext *ctx,
                                           const char *module_name);
