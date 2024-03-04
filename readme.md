@@ -26,3 +26,9 @@ cd lanyt.js
 xmake b ljs 
 xmake install -o /usr/local ljs # install to /usr/local
 ```
+
+3. Use the binary in your command line.
+
+```shell
+ljs run test.js # more details see `ljs --help`
+```
