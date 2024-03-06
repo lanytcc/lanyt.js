@@ -2,7 +2,7 @@
 #include "module.h"
 #include <stdio.h>
 
-#define PJS_VERSION "0.0.1"
+#define ljs_VERSION "0.0.1"
 
 enum {
     COMMAND_RUN,
@@ -47,12 +47,12 @@ static int run(int argc, char **argv) {
         fprintf(stderr, "create runtime failed\n");
         return 1;
     }
-    lanyt_js *pjs = lanyt_new_js(rt);
-    if (!pjs) {
+    lanyt_js *ljs = lanyt_new_js(rt);
+    if (!ljs) {
         fprintf(stderr, "create js context failed\n");
         return 1;
     }
-    ctx = lanyt_js_get_ctx(pjs);
+    ctx = lanyt_js_get_ctx(ljs);
 
     for (size_t i = 2; i < argc; i++) {
         if (!strcmp(argv[i], option_str[OPTION_RUN_BYTECODE]) ||
@@ -78,15 +78,15 @@ static int run(int argc, char **argv) {
     }
     js_std_add_helpers(ctx, sargc, sargv);
     if (bc) {
-        if (lanyt_js_read(pjs, argv[pos], NULL))
+        if (lanyt_js_read(ljs, argv[pos], NULL))
             return 1;
     } else {
-        if (lanyt_js_eval(pjs, argv[pos]))
+        if (lanyt_js_eval(ljs, argv[pos]))
             return 1;
     }
-    if (lanyt_js_run(pjs, silent))
+    if (lanyt_js_run(ljs, silent))
         return 1;
-    lanyt_free_js(pjs);
+    lanyt_free_js(ljs);
     lanyt_jsc_free_rt(rt);
     return 0;
 }
@@ -98,8 +98,8 @@ static int compile(int argc, char **argv) {
         fprintf(stderr, "create runtime failed\n");
         return 1;
     }
-    lanyt_js *pjs = lanyt_new_js(rt);
-    if (!pjs) {
+    lanyt_js *ljs = lanyt_new_js(rt);
+    if (!ljs) {
         fprintf(stderr, "create js context failed\n");
         return 1;
     }
@@ -121,20 +121,20 @@ static int compile(int argc, char **argv) {
             return 1;
         }
     }
-    if (lanyt_js_eval(pjs, argv[pos]))
+    if (lanyt_js_eval(ljs, argv[pos]))
         return 1;
-    if (o_pos && lanyt_js_save(pjs, argv[o_pos], debug))
+    if (o_pos && lanyt_js_save(ljs, argv[o_pos], debug))
         return 1;
-    if (!o_pos && lanyt_js_save(pjs, "a.pbc", debug))
+    if (!o_pos && lanyt_js_save(ljs, "a.pbc", debug))
         return 1;
-    lanyt_free_js(pjs);
+    lanyt_free_js(ljs);
     lanyt_jsc_free_rt(rt);
     return 0;
 }
 
 static int help(int argc, char **argv) {
     if (argc == 2) {
-        printf("Usage: pjs <command> [options]\n");
+        printf("Usage: ljs <command> [options]\n");
         printf("Options:\n");
         printf("  --version, -v:    print version\n");
         printf("Commands:\n");
@@ -142,13 +142,13 @@ static int help(int argc, char **argv) {
         printf(
             "  compile, c:       compile <file>, compile js file to binary\n");
         printf("  help, h:          help [command], print help\n");
-        printf("More help use: pjs help [command]\n");
+        printf("More help use: ljs help [command]\n");
         return 0;
     } else if (argc == 3) {
         for (size_t i = 0; i < COMMAND_COUNT; i++) {
             if (!strcmp(argv[2], command_str[i]) ||
                 !strcmp(argv[2], command_str[i + COMMAND_COUNT])) {
-                printf("Usage: pjs %s [options]\n", command_str[i]);
+                printf("Usage: ljs %s [options]\n", command_str[i]);
                 printf("Options:\n");
                 switch (i) {
                 case COMMAND_RUN:
@@ -175,7 +175,7 @@ static int help(int argc, char **argv) {
 }
 
 static int version(int argc, char **argv) {
-    printf("pjs version: %s\n", PJS_VERSION);
+    printf("ljs version: %s\n", ljs_VERSION);
     return 0;
 }
 
@@ -189,12 +189,18 @@ static const command_func command_func_list[] = {
 int main(int argc, char **argv) {
     int ret = 0;
     lanyt_js_module_init();
-    for (size_t i = 0; i < COMMAND_COUNT; i++) {
+    size_t i;
+    for (i = 0; i < COMMAND_COUNT; i++) {
         if (!strcmp(argv[1], command_str[i]) ||
             !strcmp(argv[1], command_str[i + COMMAND_COUNT])) {
             ret = command_func_list[i](argc, argv);
             break;
         }
+    }
+    if (i == COMMAND_COUNT) {
+        fprintf(stderr, "unknown command: %s\n", argv[1]);
+        ret = 1;
+        help(2, argv);
     }
     lanyt_js_module_free();
     return ret;

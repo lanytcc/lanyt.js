@@ -15,7 +15,7 @@
 #define MALLOC_OVERHEAD 8
 #endif
 
-static void *pjs_def_malloc(JSMallocState *s, size_t size) {
+static void *ljs_def_malloc(JSMallocState *s, size_t size) {
     void *ptr;
 
     if (size == 0 || unlikely(s->malloc_size + size > s->malloc_limit))
@@ -30,7 +30,7 @@ static void *pjs_def_malloc(JSMallocState *s, size_t size) {
     return ptr;
 }
 
-static void pjs_def_free(JSMallocState *s, void *ptr) {
+static void ljs_def_free(JSMallocState *s, void *ptr) {
     if (!ptr)
         return;
     s->malloc_count--;
@@ -38,13 +38,13 @@ static void pjs_def_free(JSMallocState *s, void *ptr) {
     mi_free(ptr);
 }
 
-static void *pjs_def_realloc(JSMallocState *s, void *ptr, size_t size) {
+static void *ljs_def_realloc(JSMallocState *s, void *ptr, size_t size) {
     size_t old_size;
 
     if (!ptr) {
         if (size == 0)
             return NULL;
-        return pjs_def_malloc(s, size);
+        return ljs_def_malloc(s, size);
     }
 
     old_size = mi_usable_size(ptr);
@@ -65,15 +65,15 @@ static void *pjs_def_realloc(JSMallocState *s, void *ptr, size_t size) {
     return ptr;
 }
 
-static size_t pjs_def_malloc_usable_size(const void *ptr) {
+static size_t ljs_def_malloc_usable_size(const void *ptr) {
     return mi_usable_size(ptr);
 }
 
 static const JSMallocFunctions def_malloc_funcs = {
-    pjs_def_malloc,
-    pjs_def_free,
-    pjs_def_realloc,
-    pjs_def_malloc_usable_size,
+    ljs_def_malloc,
+    ljs_def_free,
+    ljs_def_realloc,
+    ljs_def_malloc_usable_size,
 };
 
 static JSContext *JS_NewCustomContext(JSRuntime *rt) {
@@ -119,12 +119,12 @@ struct lanyt_js {
 
 static lanyt_js *lanyt_new_js_noctx(JSRuntime *rt);
 
-static int to_bytecode(JSContext *ctx, JSValueConst obj, lanyt_js *pjs) {
+static int to_bytecode(JSContext *ctx, JSValueConst obj, lanyt_js *ljs) {
     uint8_t *bytecode_buf;
     size_t bytecode_buf_len;
     int flags;
     flags = JS_WRITE_OBJ_BYTECODE;
-    if (pjs->byte_swap)
+    if (ljs->byte_swap)
         flags |= JS_WRITE_OBJ_BSWAP;
     bytecode_buf = JS_WriteObject(ctx, &bytecode_buf_len, obj, flags);
 
@@ -132,8 +132,8 @@ static int to_bytecode(JSContext *ctx, JSValueConst obj, lanyt_js *pjs) {
         return -1;
     }
 
-    pjs->bytecode_len = bytecode_buf_len;
-    pjs->bytecode = bytecode_buf;
+    ljs->bytecode_len = bytecode_buf_len;
+    ljs->bytecode = bytecode_buf;
 
     return 0;
 }
@@ -145,7 +145,7 @@ static JSModuleDef *jsc_module_loader(JSContext *ctx, const char *module_name,
     size_t buf_len;
     uint8_t *buf;
     JSValue func_val;
-    lanyt_js *pjs = opaque;
+    lanyt_js *ljs = opaque;
 
     /* check if it is a declared C or system module */
     m = lanyt_js_init_module(ctx, module_name);
@@ -184,11 +184,11 @@ static JSModuleDef *jsc_module_loader(JSContext *ctx, const char *module_name,
         return NULL;
     }
 
-    while (pjs->next != NULL)
-        pjs = pjs->next;
+    while (ljs->next != NULL)
+        ljs = ljs->next;
 
-    pjs->next = lanyt_new_js_noctx(JS_GetRuntime(ctx));
-    if (to_bytecode(ctx, func_val, pjs->next)) {
+    ljs->next = lanyt_new_js_noctx(JS_GetRuntime(ctx));
+    if (to_bytecode(ctx, func_val, ljs->next)) {
         JS_FreeValue(ctx, func_val);
         JS_ThrowInternalError(ctx, "could not write module bytecode '%s'",
                               module_name);
@@ -202,7 +202,7 @@ static JSModuleDef *jsc_module_loader(JSContext *ctx, const char *module_name,
     return m;
 }
 
-static int compile_file(JSContext *ctx, lanyt_js *pjs, const char *filename) {
+static int compile_file(JSContext *ctx, lanyt_js *ljs, const char *filename) {
     uint8_t *buf;
     int eval_flags;
     JSValue obj;
@@ -234,19 +234,19 @@ static int compile_file(JSContext *ctx, lanyt_js *pjs, const char *filename) {
 
     obj = JS_Eval(ctx, (const char *)buf, buf_len, filename, eval_flags);
     if (strcmp(pc_buf, pc)) {
-        pjs->filename =
+        ljs->filename =
             js_malloc(ctx, strlen(filename) + 1 + 2 + strlen((char *)buf));
-        if (!pjs->filename) {
+        if (!ljs->filename) {
             JS_FreeValue(ctx, obj);
             goto dump;
         }
-        sprintf(pjs->filename, "<%s>", filename);
-        strcat(pjs->filename, (char *)buf);
+        sprintf(ljs->filename, "<%s>", filename);
+        strcat(ljs->filename, (char *)buf);
         js_free(ctx, buf);
     } else {
-        pjs->filename = js_strdup(ctx, (char *)buf);
+        ljs->filename = js_strdup(ctx, (char *)buf);
     }
-    if (!pjs->filename) {
+    if (!ljs->filename) {
         JS_FreeValue(ctx, obj);
         goto dump;
     }
@@ -254,7 +254,7 @@ static int compile_file(JSContext *ctx, lanyt_js *pjs, const char *filename) {
         JS_FreeValue(ctx, obj);
         goto dump;
     }
-    to_bytecode(ctx, obj, pjs);
+    to_bytecode(ctx, obj, ljs);
     JS_FreeValue(ctx, obj);
     return 0;
 }
@@ -296,34 +296,34 @@ lanyt_js *lanyt_new_js(JSRuntime *rt) {
     return r;
 }
 
-JSContext *lanyt_js_get_ctx(lanyt_js *pjs) { return pjs->ctx; }
-lanyt_js *lanyt_js_get_next(lanyt_js *pjs) { return pjs->next; }
-char *lanyt_js_get_filename(lanyt_js *pjs) { return pjs->filename; }
+JSContext *lanyt_js_get_ctx(lanyt_js *ljs) { return ljs->ctx; }
+lanyt_js *lanyt_js_get_next(lanyt_js *ljs) { return ljs->next; }
+char *lanyt_js_get_filename(lanyt_js *ljs) { return ljs->filename; }
 
-static void free_help(JSContext *ctx, lanyt_js *pjs) {
-    if (pjs == NULL)
+static void free_help(JSContext *ctx, lanyt_js *ljs) {
+    if (ljs == NULL)
         return;
-    js_free(ctx, pjs->bytecode);
-    js_free(ctx, pjs->filename);
-    free_help(ctx, pjs->next);
-    mi_free(pjs);
+    js_free(ctx, ljs->bytecode);
+    js_free(ctx, ljs->filename);
+    free_help(ctx, ljs->next);
+    mi_free(ljs);
 }
 
-void lanyt_free_js(lanyt_js *pjs) {
+void lanyt_free_js(lanyt_js *ljs) {
     JSContext *ctx;
-    if (pjs == NULL)
+    if (ljs == NULL)
         return;
-    ctx = pjs->ctx;
-    free_help(ctx, pjs);
+    ctx = ljs->ctx;
+    free_help(ctx, ljs);
     JS_FreeContext(ctx);
 }
 
-int lanyt_js_eval(lanyt_js *pjs, const char *filename) {
-    if (!pjs) {
-        printf("pjs is null\n");
+int lanyt_js_eval(lanyt_js *ljs, const char *filename) {
+    if (!ljs) {
+        printf("ljs is null\n");
         return -1;
     }
-    return compile_file(pjs->ctx, pjs, filename);
+    return compile_file(ljs->ctx, ljs, filename);
 }
 
 static int run(JSContext *ctx, const uint8_t *buf, size_t buf_len,
@@ -357,72 +357,72 @@ static int run(JSContext *ctx, const uint8_t *buf, size_t buf_len,
     return 0;
 }
 
-int lanyt_js_run(lanyt_js *pjs, int silent) {
-    if (!pjs) {
-        printf("pjs is null\n");
+int lanyt_js_run(lanyt_js *ljs, int silent) {
+    if (!ljs) {
+        printf("ljs is null\n");
         return -1;
     }
-    lanyt_js *n = pjs->next;
+    lanyt_js *n = ljs->next;
     while (n != NULL) {
         if (n->bytecode == NULL)
             return -2;
-        if (run(pjs->ctx, n->bytecode, n->bytecode_len, 1, silent))
+        if (run(ljs->ctx, n->bytecode, n->bytecode_len, 1, silent))
             return -3;
         n = n->next;
     }
-    if (pjs->bytecode == NULL)
+    if (ljs->bytecode == NULL)
         return -2;
-    if (run(pjs->ctx, pjs->bytecode, pjs->bytecode_len, 0, silent))
+    if (run(ljs->ctx, ljs->bytecode, ljs->bytecode_len, 0, silent))
         return -4;
 
-    js_std_loop(pjs->ctx);
+    js_std_loop(ljs->ctx);
 
     return 0;
 }
 
-int lanyt_js_save(lanyt_js *pjs, const char *filename, int debug) {
-    if (!pjs) {
-        printf("pjs is null\n");
+int lanyt_js_save(lanyt_js *ljs, const char *filename, int debug) {
+    if (!ljs) {
+        printf("ljs is null\n");
         return -1;
     }
 
     FILE *fp = fopen(filename, "wb");
     if (!fp) {
-        JS_ThrowInternalError(pjs->ctx, "could not open '%s'", filename);
-        js_std_dump_error(pjs->ctx);
+        JS_ThrowInternalError(ljs->ctx, "could not open '%s'", filename);
+        js_std_dump_error(ljs->ctx);
         return -1;
     }
 
     if (fwrite(&debug, sizeof(debug), 1, fp) != 1)
         goto fail;
-    while (pjs != NULL) {
-        if (pjs->bytecode == NULL) {
-            JS_ThrowInternalError(pjs->ctx, "bytecode is null");
+    while (ljs != NULL) {
+        if (ljs->bytecode == NULL) {
+            JS_ThrowInternalError(ljs->ctx, "bytecode is null");
             goto fail;
         }
-        if (fwrite(&pjs->bytecode_len, sizeof(pjs->bytecode_len), 1, fp) != 1) {
-            JS_ThrowInternalError(pjs->ctx, "could not write bytecode_len");
+        if (fwrite(&ljs->bytecode_len, sizeof(ljs->bytecode_len), 1, fp) != 1) {
+            JS_ThrowInternalError(ljs->ctx, "could not write bytecode_len");
             goto fail;
         }
-        if (fwrite(pjs->bytecode, 1, pjs->bytecode_len, fp) !=
-            pjs->bytecode_len) {
-            JS_ThrowInternalError(pjs->ctx, "could not write bytecode");
+        if (fwrite(ljs->bytecode, 1, ljs->bytecode_len, fp) !=
+            ljs->bytecode_len) {
+            JS_ThrowInternalError(ljs->ctx, "could not write bytecode");
             goto fail;
         }
         if (!debug) {
-            pjs = pjs->next;
+            ljs = ljs->next;
             continue;
         }
-        if (pjs->filename) {
-            uint64_t len = strlen(pjs->filename);
+        if (ljs->filename) {
+            uint64_t len = strlen(ljs->filename);
             if (fwrite(&len, sizeof(len), 1, fp) != 1) {
                 JS_ThrowInternalError(
-                    pjs->ctx, "could not write file len: '%s'", pjs->filename);
+                    ljs->ctx, "could not write file len: '%s'", ljs->filename);
                 goto fail;
             }
-            if (fwrite(pjs->filename, 1, len, fp) != len) {
-                JS_ThrowInternalError(pjs->ctx, "could not write file: %s",
-                                      pjs->filename);
+            if (fwrite(ljs->filename, 1, len, fp) != len) {
+                JS_ThrowInternalError(ljs->ctx, "could not write file: %s",
+                                      ljs->filename);
                 goto fail;
             }
         } else {
@@ -430,16 +430,16 @@ int lanyt_js_save(lanyt_js *pjs, const char *filename, int debug) {
             uint64_t len = strlen(buf);
             if (fwrite(&len, sizeof(len), 1, fp) != 1) {
                 JS_ThrowInternalError(
-                    pjs->ctx, "could not write file len: '%s'", pjs->filename);
+                    ljs->ctx, "could not write file len: '%s'", ljs->filename);
                 goto fail;
             }
             if (fwrite(buf, 1, len, fp) != len) {
-                JS_ThrowInternalError(pjs->ctx, "could not write file: %s",
-                                      pjs->filename);
+                JS_ThrowInternalError(ljs->ctx, "could not write file: %s",
+                                      ljs->filename);
                 goto fail;
             }
         }
-        pjs = pjs->next;
+        ljs = ljs->next;
     }
 
     uint64_t _tmp = 0;
@@ -450,28 +450,28 @@ int lanyt_js_save(lanyt_js *pjs, const char *filename, int debug) {
     return 0;
 fail:
     fclose(fp);
-    js_std_dump_error(pjs->ctx);
+    js_std_dump_error(ljs->ctx);
     return -2;
 }
 
-int lanyt_js_read(lanyt_js *pjs, const char *filename, int *debug) {
+int lanyt_js_read(lanyt_js *ljs, const char *filename, int *debug) {
     uint8_t *buf, *buf1;
     uint64_t buf_len;
     int is_debug = 0;
-    if (!pjs) {
-        printf("pjs is null\n");
+    if (!ljs) {
+        printf("ljs is null\n");
         return -1;
     }
     if (!filename) {
-        JS_ThrowInternalError(pjs->ctx, "filename is null");
-        js_std_dump_error(pjs->ctx);
+        JS_ThrowInternalError(ljs->ctx, "filename is null");
+        js_std_dump_error(ljs->ctx);
         return -1;
     }
-    buf = js_load_file(pjs->ctx, &buf_len, filename);
+    buf = js_load_file(ljs->ctx, &buf_len, filename);
     buf1 = buf;
     if (!buf) {
-        JS_ThrowInternalError(pjs->ctx, "could not load '%s'", filename);
-        js_std_dump_error(pjs->ctx);
+        JS_ThrowInternalError(ljs->ctx, "could not load '%s'", filename);
+        js_std_dump_error(ljs->ctx);
         return -2;
     }
     is_debug = *(int *)buf;
@@ -489,21 +489,21 @@ int lanyt_js_read(lanyt_js *pjs, const char *filename, int *debug) {
             break;
         p = buf + sizeof(uint64_t);
         if (len > buf_len) {
-            JS_ThrowInternalError(pjs->ctx, "invalid file format");
-            js_std_dump_error(pjs->ctx);
+            JS_ThrowInternalError(ljs->ctx, "invalid file format");
+            js_std_dump_error(ljs->ctx);
             goto fail;
         }
 
-        lanyt_js *n = lanyt_new_js_noctx(JS_GetRuntime(pjs->ctx));
+        lanyt_js *n = lanyt_new_js_noctx(JS_GetRuntime(ljs->ctx));
         if (!n) {
         mem_fail:
-            js_std_dump_error(pjs->ctx);
+            js_std_dump_error(ljs->ctx);
             goto fail;
         }
         n->bytecode_len = len;
-        n->bytecode = js_malloc(pjs->ctx, len);
+        n->bytecode = js_malloc(ljs->ctx, len);
         if (!n->bytecode) {
-            js_free(pjs->ctx, n);
+            js_free(ljs->ctx, n);
             goto mem_fail;
         }
         memcpy(n->bytecode, p, len);
@@ -513,22 +513,22 @@ int lanyt_js_read(lanyt_js *pjs, const char *filename, int *debug) {
             buf_len -= len + sizeof(uint64_t);
 
             if (buf_len < sizeof(uint64_t)) {
-                JS_ThrowInternalError(pjs->ctx, "invalid file format");
-                js_std_dump_error(pjs->ctx);
+                JS_ThrowInternalError(ljs->ctx, "invalid file format");
+                js_std_dump_error(ljs->ctx);
                 goto fail;
             }
 
             len = *(uint64_t *)buf;
             p = buf + sizeof(uint64_t);
             if (len > buf_len) {
-                JS_ThrowInternalError(pjs->ctx, "invalid file format");
-                js_std_dump_error(pjs->ctx);
+                JS_ThrowInternalError(ljs->ctx, "invalid file format");
+                js_std_dump_error(ljs->ctx);
                 goto fail;
             }
-            n->filename = js_malloc(pjs->ctx, len + 1);
+            n->filename = js_malloc(ljs->ctx, len + 1);
             if (!n->filename) {
-                js_free(pjs->ctx, n->bytecode);
-                js_free(pjs->ctx, n);
+                js_free(ljs->ctx, n->bytecode);
+                js_free(ljs->ctx, n);
                 goto mem_fail;
             }
             memcpy(n->filename, p, len);
@@ -536,12 +536,12 @@ int lanyt_js_read(lanyt_js *pjs, const char *filename, int *debug) {
         }
 
         if (!f) {
-            pjs->bytecode_len = len;
-            pjs->bytecode = n->bytecode;
+            ljs->bytecode_len = len;
+            ljs->bytecode = n->bytecode;
             f = 1;
-            js_free(pjs->ctx, n);
+            js_free(ljs->ctx, n);
         } else {
-            lanyt_js *t = pjs->next;
+            lanyt_js *t = ljs->next;
             while (t->next != NULL) {
                 t = t->next;
             }
@@ -552,9 +552,9 @@ int lanyt_js_read(lanyt_js *pjs, const char *filename, int *debug) {
         buf_len -= len + sizeof(uint64_t);
     }
 
-    js_free(pjs->ctx, buf1);
+    js_free(ljs->ctx, buf1);
     return 0;
 fail:
-    js_free(pjs->ctx, buf1);
+    js_free(ljs->ctx, buf1);
     return -3;
 }
