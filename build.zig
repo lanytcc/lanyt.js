@@ -13,6 +13,7 @@ pub fn build(b: *std.Build) void {
     exe.addIncludePath(.{ .path = "../quickjs" });
     exe.addLibraryPath(.{ .path = "../quickjs/zig-out/lib" });
     exe.linkSystemLibrary("quickjs");
+    exe.linkSystemLibrary("mimalloc");
     exe.linkSystemLibrary("c");
     exe.addCSourceFiles(.{
         .files = &.{ "main.c", "jsc.c", "module.c" },
