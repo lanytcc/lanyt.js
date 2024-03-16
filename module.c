@@ -219,10 +219,10 @@ init_cmodule_fn_t load_dynamic(const char *filename, const char *fn_name,
     if (!lib)
         lib = dlopen(filename, RTLD_LAZY);
     if (lib) {
-        func = (init_cmodule_fn_t)dlsym(lib, funcname);
+        func = (init_cmodule_fn_t)dlsym(lib, fn_name);
         if (func == NULL) {
             error = mi_malloc(256);
-            pos = snprintf(error, 256, "dlsym error: %s", funcname);
+            pos = snprintf(error, 256, "dlsym error: %s", fn_name);
             snprintf(error + pos, 256 - pos, "\n  dlerror: %s", dlerror());
             goto fail;
         }
@@ -270,7 +270,6 @@ static JSModuleDef *js_ffi_init_module(JSContext *ctx,
 JSModuleDef *lanyt_js_init_module(JSContext *ctx, const char *module_name) {
     char _module_name[MODULE_MAX_NAME] = {0};
     char *str1 = NULL;
-    char *str2 = NULL;
     init_cmodule_fn_t fn = NULL;
     if (!module_name) {
         return NULL;
