@@ -228,7 +228,8 @@ init_cmodule_fn_t load_dynamic(const char *filename, const char *fn_name,
         }
     } else {
         error = mi_malloc(256);
-        snprintf(error, 256, "dlopen error: %s", filename);
+        pos = snprintf(error, 256, "dlopen error: %s", filename);
+        snprintf(error + pos, 256 - pos, "\n  dlerror: %s", dlerror());
         goto fail;
     }
 

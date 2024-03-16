@@ -15,13 +15,13 @@ pub fn build(b: *std.Build) void {
     exe.linkSystemLibrary("quickjs");
     exe.linkSystemLibrary("mimalloc");
     exe.linkSystemLibrary("c");
+    exe.linkSystemLibrary("dl");
     exe.addCSourceFiles(.{
         .files = &.{ "main.c", "jsc.c", "module.c" },
         .flags = &.{
             "-Wall",
             "-Wno-array-bounds",
             "-fwrapv",
-            "-fdeclspec",
             "-fvisibility=hidden",
             "-DCONFIG_VERSION=\"2024-02-14\"",
             // "-DCONFIG_CHECK_JSVALUE",
